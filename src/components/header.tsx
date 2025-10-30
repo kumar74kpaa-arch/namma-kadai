@@ -30,7 +30,7 @@ export function Header() {
               </div>
             </Button>
           </Link>
-          <Link href="/admin/dashboard">
+          <Link href="/admin/login">
             <Button variant="ghost" size="icon" aria-label="Admin Login">
               <User className="h-5 w-5" />
             </Button>
