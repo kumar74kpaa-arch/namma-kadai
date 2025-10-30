@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "kuthu-vilakku",
+      "description": "A traditional brass oil lamp, known as Kuthu Vilakku, used for ceremonies and decoration. It brings a divine radiance to any space.",
+      "imageUrl": "https://images.unsplash.com/photo-1673103350993-b1b3052dd12c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxicmFzcyUyMGxhbXB8ZW58MHx8fHwxNzYxODQ0MDYwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "brass lamp"
+    },
+    {
+      "id": "pattu-saree",
+      "description": "An elegant Kanchipuram silk saree, handwoven with intricate zari work. Perfect for weddings and grand occasions.",
+      "imageUrl": "https://images.unsplash.com/photo-1606689282586-9b01aa10f69d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxzaWxrJTIwZmFicmljfGVufDB8fHx8MTc2MTc4MzUwNHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "silk fabric"
+    },
+    {
+      "id": "manga-oorugai",
+      "description": "Spicy and tangy homemade mango pickle (மாங்காய் ஊறுகாய்), a perfect accompaniment to any South Indian meal.",
+      "imageUrl": "https://images.unsplash.com/photo-1627861446476-42fd9925e151?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxwaWNrbGUlMjBqYXJ8ZW58MHx8fHwxNzYxODQ0MDYxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "pickle jar"
+    },
+    {
+      "id": "kovil-mani",
+      "description": "A solid brass temple bell with a deep, resonant sound. Ideal for your home puja room or as a decorative piece.",
+      "imageUrl": "https://images.unsplash.com/photo-1627764495284-40f6cdf99295?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxicmFzcyUyMGJlbGx8ZW58MHx8fHwxNzYxODQ0MDYwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "brass bell"
+    },
+    {
+      "id": "sandalwood-soap",
+      "description": "Aromatic sandalwood soap that cleanses and nourishes the skin, leaving a lingering, pleasant fragrance.",
+      "imageUrl": "https://images.unsplash.com/photo-1607006482749-f25db0b3fbab?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxzb2FwJTIwYmFyfGVufDB8fHx8MTc2MTgyODI3Nnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "soap bar"
+    },
+    {
+      "id": "malli-poo",
+      "description": "Fresh jasmine flowers (மல்லி பூ) strung together, traditionally worn in the hair for their beautiful fragrance.",
+      "imageUrl": "https://images.unsplash.com/photo-1623171403798-51cc000d569a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxqYXNtaW5lJTIwZmxvd2Vyc3xlbnwwfHx8fDE3NjE4NDQwNjF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "jasmine flowers"
+    }
+  ]
 }
