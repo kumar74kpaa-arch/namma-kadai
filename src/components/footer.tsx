@@ -3,7 +3,7 @@ export function Footer() {
     <footer className="bg-card/50 border-t mt-12">
       <div className="container mx-auto px-4 py-6 text-center text-muted-foreground text-sm">
         <p>
-          Made by Kumar Technologies, kumartech.unaux.com and designed by S Sarika
+          Made by Kumar Technologies, <a href="http://kumartech.unaux.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">kumartech.unaux.com</a> and designed by S Sarika
         </p>
       </div>
     </footer>
