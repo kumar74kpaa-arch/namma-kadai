@@ -34,11 +34,13 @@ export default function AdminDashboard() {
               <span>Customer Orders</span>
             </CardTitle>
             <CardDescription>
-              View and manage incoming customer orders. (Coming soon)
+              View and manage incoming customer orders.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button disabled>View Orders</Button>
+            <Button asChild>
+              <Link href="/admin/orders">View Orders</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

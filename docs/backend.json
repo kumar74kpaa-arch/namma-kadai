@@ -71,12 +71,26 @@
           "type": "array",
           "description": "List of items included in the order.",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "price": {
+                "type": "number"
+              },
+              "quantity": {
+                "type": "number"
+              }
+            },
+            "required": ["id", "name", "price", "quantity"]
           }
         }
       },
       "required": [
-        "id",
         "customerName",
         "customerPhone",
         "customerAddress",

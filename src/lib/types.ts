@@ -10,3 +10,20 @@ export type Product = {
 export type CartItem = Product & {
   quantity: number;
 };
+
+export type OrderItem = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+};
+
+export type Order = {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  orderDate: string; // ISO 8601 format
+  totalPrice: number;
+  orderItems: OrderItem[];
+};

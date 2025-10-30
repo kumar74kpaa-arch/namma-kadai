@@ -11,18 +11,78 @@ import { Minus, Plus, Trash2, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { useFirestore, addDocumentNonBlocking } from "@/firebase";
+import { collection } from "firebase/firestore";
+import type { Order } from "@/lib/types";
 
 export default function CartPage() {
   const { cartItems, updateQuantity, removeFromCart, totalPrice, totalItems, clearCart } = useCart();
   const { toast } = useToast();
+  const firestore = useFirestore();
 
-  const handleCheckout = () => {
-    // In a real app, this would process payment and create an order.
-    toast({
-      title: "Checkout Successful!",
-      description: "Thank you for your order. We will be in touch shortly.",
-    });
-    clearCart();
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  const handleCheckout = async () => {
+    if (!customerName || !customerPhone || !customerAddress) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please fill out all customer details before checking out.",
+      });
+      return;
+    }
+
+    if (!firestore) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not connect to the database. Please try again later.",
+        });
+        return;
+    }
+
+    setIsCheckingOut(true);
+
+    const order: Omit<Order, 'id'> = {
+      customerName,
+      customerPhone,
+      customerAddress,
+      orderDate: new Date().toISOString(),
+      totalPrice,
+      orderItems: cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      })),
+    };
+
+    try {
+      const ordersCollection = collection(firestore, 'orders');
+      await addDocumentNonBlocking(ordersCollection, order);
+      
+      toast({
+        title: "Checkout Successful!",
+        description: "Thank you for your order. We will be in touch shortly.",
+      });
+      clearCart();
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerAddress('');
+    } catch (error) {
+      console.error("Error creating order:", error);
+      toast({
+        variant: "destructive",
+        title: "Checkout Failed",
+        description: "There was a problem placing your order. Please try again.",
+      });
+    } finally {
+        setIsCheckingOut(false);
+    }
   };
 
   if (totalItems === 0) {
@@ -100,21 +160,21 @@ export default function CartPage() {
               <div className="grid gap-4 mt-4">
                  <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" placeholder="Enter your name" />
+                    <Input id="name" placeholder="Enter your name" value={customerName} onChange={e => setCustomerName(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>
-                    <Input id="phone" placeholder="Enter your phone number" />
+                    <Input id="phone" placeholder="Enter your phone number" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="address">Shipping Address</Label>
-                    <Input id="address" placeholder="Enter your address" />
+                    <Input id="address" placeholder="Enter your address" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
                   </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full" size="lg" onClick={handleCheckout}>
-                Proceed to Checkout
+              <Button className="w-full" size="lg" onClick={handleCheckout} disabled={isCheckingOut}>
+                {isCheckingOut ? 'Placing Order...' : 'Proceed to Checkout'}
               </Button>
             </CardFooter>
           </Card>
