@@ -1,5 +1,6 @@
 import { getProducts } from '@/lib/products';
 import { ProductCard } from '@/components/product-card';
+import { AdBanner } from '@/components/AdBanner';
 
 export default async function Home() {
   const products = await getProducts();
@@ -14,6 +15,7 @@ export default async function Home() {
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
+      <AdBanner />
     </div>
   );
 }
