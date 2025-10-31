@@ -16,7 +16,7 @@ export function Header() {
   return (
     <header className="bg-card/80 backdrop-blur-sm border-b sticky top-0 z-40">
       <div className="container mx-auto px-4 flex items-center justify-between h-16">
-        <Link href="/home" className="flex items-center gap-2 text-lg font-headline font-bold text-foreground">
+        <Link href="/" className="flex items-center gap-2 text-lg font-headline font-bold text-foreground">
           <LogoIcon className="h-6 w-6 text-primary" />
           Namma Kadai
         </Link>
