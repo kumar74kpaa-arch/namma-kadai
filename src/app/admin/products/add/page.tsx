@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Upload } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 
 const productSchema = z.object({
@@ -66,27 +66,36 @@ export default function AddProductPage() {
 
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
-    if (!firestore) {
+    setIsLoading(true);
+    console.log("🚀 Starting Add Product...");
+    const file = data.image[0] as File;
+
+    console.log("✅ File selected:", file?.name);
+    console.log("✅ Firebase Firestore:", firestore ? "Connected" : "Missing");
+    console.log("✅ Firebase Storage:", storage ? "Connected" : "Missing");
+
+    if (!firestore || !storage) {
       toast({
         variant: 'destructive',
         title: 'Database Error',
-        description: 'Could not connect to the database. Please try again.',
+        description: 'Could not connect to the database or storage. Please try again.',
       });
+      setIsLoading(false);
       return;
     }
-    
-    setIsLoading(true);
-    const file = data.image[0] as File;
 
     try {
       // 1. Upload image to Firebase Storage
+      console.log("📤 Uploading image to Firebase...");
       const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
       await uploadBytes(storageRef, file);
       
       // 2. Get the download URL
       const imageUrl = await getDownloadURL(storageRef);
+      console.log("🌐 Got download URL:", imageUrl);
       
       // 3. Add product to Firestore
+      console.log("📝 Adding Firestore document...");
       await addDoc(collection(firestore, 'products'), {
         name: data.name,
         description: data.description,
@@ -94,6 +103,7 @@ export default function AddProductPage() {
         imageUrl,
         createdAt: serverTimestamp(),
       });
+      console.log("✅ Firestore document added successfully");
 
       toast({
           title: 'Product Added!',
@@ -110,7 +120,6 @@ export default function AddProductPage() {
           description: 'Could not save the product. Please try again.',
       });
     } finally {
-      // This will run whether the try block succeeds or fails
       setIsLoading(false);
     }
   };
