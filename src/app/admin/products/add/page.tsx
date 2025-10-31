@@ -6,7 +6,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore } from '@/firebase';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Upload } from 'lucide-react';
 import Image from 'next/image';
@@ -21,7 +22,14 @@ import Image from 'next/image';
 const productSchema = z.object({
   name: z.string().min(3, 'Product name must be at least 3 characters'),
   description: z.string().min(10, 'Description must be at least 10 characters'),
-  price: z.coerce.number().min(0, 'Price must be a positive number'),
+  price: z.coerce.number().min(0.01, 'Price must be a positive number'),
+  image: z.any()
+    .refine((files) => files?.length == 1, 'Image is required.')
+    .refine((files) => files?.[0]?.size <= 5000000, `Max file size is 5MB.`)
+    .refine(
+      (files) => ['image/jpeg', 'image/png'].includes(files?.[0]?.type),
+      'Only .jpg and .png formats are supported.'
+    ),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -32,71 +40,96 @@ export default function AddProductPage() {
   const storage = getStorage();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<ProductFormValues>({
+  const { register, handleSubmit, formState: { errors }, watch } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+  const imageFile = watch('image');
+
+  // Effect to update image preview
+  useState(() => {
+    if (imageFile && imageFile.length > 0) {
+      const file = imageFile[0];
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+
+      // Clean up the object URL on unmount
+      return () => URL.revokeObjectURL(previewUrl);
+    } else {
+        setImagePreview(null);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageFile]);
+
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
-    if (!imageFile) {
-        toast({
-            variant: 'destructive',
-            title: 'Image Required',
-            description: 'Please upload a product image.',
-        });
-        return;
-    }
     if (!firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Database Error',
+        description: 'Could not connect to the database. Please try again.',
+      });
+      return;
+    }
+    
+    const file = data.image[0] as File;
+    setIsLoading(true);
+    setUploadProgress(0);
+
+    const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        console.error('Upload failed:', error);
         toast({
             variant: 'destructive',
-            title: 'Database Error',
-            description: 'Could not connect to the database. Please try again.',
+            title: 'Upload Failed',
+            description: 'Could not upload the product image. Please try again.',
         });
-        return;
-    }
-
-    setIsLoading(true);
-
-    try {
-        // 1. Upload image to Firebase Storage
-        const imageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(imageRef, imageFile);
-        const imageUrl = await getDownloadURL(imageRef);
-
-        // 2. Add product to Firestore
-        await addDoc(collection(firestore, 'products'), {
-            ...data,
+        setIsLoading(false);
+        setUploadProgress(0);
+      },
+      async () => {
+        try {
+          const imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          
+          await addDoc(collection(firestore, 'products'), {
+            name: data.name,
+            description: data.description,
+            price: data.price,
             imageUrl,
             createdAt: serverTimestamp(),
-        });
+          });
 
-        toast({
-            title: 'Product Added!',
-            description: `${data.name} has been added to your store.`,
-        });
+          toast({
+              title: 'Product Added!',
+              description: `${data.name} has been added to your store.`,
+          });
 
-        router.push('/admin/products');
+          router.push('/admin/products');
 
-    } catch (error) {
-        console.error("Error adding product:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Uh oh! Something went wrong.',
-            description: 'Could not add the product. Please try again.',
-        });
-    } finally {
-        setIsLoading(false);
-    }
+        } catch (error) {
+          console.error("Error adding product to Firestore:", error);
+          toast({
+              variant: 'destructive',
+              title: 'Uh oh! Something went wrong.',
+              description: 'Could not save the product details. Please try again.',
+          });
+        } finally {
+            setIsLoading(false);
+            setUploadProgress(0);
+        }
+      }
+    );
   };
 
   return (
@@ -137,17 +170,23 @@ export default function AddProductPage() {
 
                 <div className="grid gap-2">
                     <Label htmlFor="image">Product Image</Label>
-                     <div className="flex items-center gap-4">
-                        {imagePreview ? (
-                             <Image src={imagePreview} alt="Product preview" width={80} height={80} className="rounded-md object-cover aspect-square" />
-                        ) : (
-                            <div className="w-20 h-20 bg-muted rounded-md flex items-center justify-center">
-                                <Upload className="h-8 w-8 text-muted-foreground" />
-                            </div>
-                        )}
-                        <Input id="image" type="file" accept="image/png, image/jpeg" onChange={handleImageChange} className="flex-1" />
-                    </div>
+                    <Input id="image" type="file" accept="image/png, image/jpeg" {...register('image')} />
+                    {errors.image && <p className="text-sm text-destructive">{typeof errors.image.message === 'string' && errors.image.message}</p>}
                 </div>
+                
+                {imagePreview && (
+                    <div className="grid gap-2">
+                        <Label>Image Preview</Label>
+                        <Image src={imagePreview} alt="Product preview" width={100} height={100} className="rounded-md object-cover aspect-square" />
+                    </div>
+                )}
+                
+                {isLoading && (
+                    <div className="grid gap-2">
+                        <Label>Upload Progress</Label>
+                        <Progress value={uploadProgress} className="w-full" />
+                    </div>
+                )}
 
                 <div className="flex justify-end gap-2">
                     <Button variant="outline" asChild>
@@ -155,7 +194,7 @@ export default function AddProductPage() {
                     </Button>
                     <Button type="submit" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isLoading ? 'Adding...' : 'Add Product'}
+                        {isLoading ? 'Adding Product...' : 'Add Product'}
                     </Button>
                 </div>
             </form>
