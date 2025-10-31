@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore } from '@/firebase';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Upload } from 'lucide-react';
 import Image from 'next/image';
@@ -40,28 +39,29 @@ export default function AddProductPage() {
   const storage = getStorage();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, watch, reset } = useForm<ProductFormValues>({
+  const { register, handleSubmit, formState: { errors }, watch } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
   });
 
   const imageFile = watch('image');
 
-  // Effect to update image preview
-  useState(() => {
+  useEffect(() => {
+    let objectUrl: string | null = null;
     if (imageFile && imageFile.length > 0) {
       const file = imageFile[0];
-      const previewUrl = URL.createObjectURL(file);
-      setImagePreview(previewUrl);
-
-      // Clean up the object URL on unmount
-      return () => URL.revokeObjectURL(previewUrl);
+      objectUrl = URL.createObjectURL(file);
+      setImagePreview(objectUrl);
     } else {
-        setImagePreview(null);
+      setImagePreview(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
   }, [imageFile]);
 
 
@@ -75,62 +75,44 @@ export default function AddProductPage() {
       return;
     }
     
-    const file = data.image[0] as File;
     setIsLoading(true);
-    setUploadProgress(0);
+    const file = data.image[0] as File;
 
-    const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    try {
+      // 1. Upload image to Firebase Storage
+      const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      
+      // 2. Get the download URL
+      const imageUrl = await getDownloadURL(storageRef);
+      
+      // 3. Add product to Firestore
+      await addDoc(collection(firestore, 'products'), {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        imageUrl,
+        createdAt: serverTimestamp(),
+      });
 
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(progress);
-      },
-      (error) => {
-        console.error('Upload failed:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Upload Failed',
-            description: 'Could not upload the product image. Please try again.',
-        });
-        setIsLoading(false);
-        setUploadProgress(0);
-      },
-      async () => {
-        try {
-          const imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-          
-          await addDoc(collection(firestore, 'products'), {
-            name: data.name,
-            description: data.description,
-            price: data.price,
-            imageUrl,
-            createdAt: serverTimestamp(),
-          });
+      toast({
+          title: 'Product Added!',
+          description: `${data.name} has been added to your store.`,
+      });
 
-          toast({
-              title: 'Product Added!',
-              description: `${data.name} has been added to your store.`,
-          });
+      router.push('/admin/products');
 
-          router.push('/admin/products');
-          // No need to set isLoading to false here because we are navigating away
-
-        } catch (error) {
-          console.error("Error adding product to Firestore:", error);
-          toast({
-              variant: 'destructive',
-              title: 'Uh oh! Something went wrong.',
-              description: 'Could not save the product details. Please try again.',
-          });
-          // On submission error, stop loading so the user can try again
-          setIsLoading(false);
-          setUploadProgress(0);
-        }
-      }
-    );
+    } catch (error) {
+      console.error("Error adding product:", error);
+      toast({
+          variant: 'destructive',
+          title: 'Uh oh! Something went wrong.',
+          description: 'Could not save the product. Please try again.',
+      });
+    } finally {
+      // This will run whether the try block succeeds or fails
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -179,13 +161,6 @@ export default function AddProductPage() {
                     <div className="grid gap-2">
                         <Label>Image Preview</Label>
                         <Image src={imagePreview} alt="Product preview" width={100} height={100} className="rounded-md object-cover aspect-square" />
-                    </div>
-                )}
-                
-                {isLoading && (
-                    <div className="grid gap-2">
-                        <Label>Upload Progress</Label>
-                        <Progress value={uploadProgress} className="w-full" />
                     </div>
                 )}
 
