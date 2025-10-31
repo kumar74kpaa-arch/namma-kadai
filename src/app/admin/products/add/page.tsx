@@ -6,7 +6,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -32,13 +32,9 @@ const productSchema = z.object({
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
-const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dl2uvxfkz/image/upload';
-const CLOUDINARY_UPLOAD_PRESET = 'namma_kadai_preset';
-
 export default function AddProductPage() {
   const router = useRouter();
   const firestore = useFirestore();
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -66,66 +62,57 @@ export default function AddProductPage() {
   }, [imageFile]);
 
 
-  const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
-    setIsLoading(true);
-
-    if (!firestore) {
-      toast({
-        variant: 'destructive',
-        title: 'Database Error',
-        description: 'Could not connect to the database. Please try again.',
-      });
-      setIsLoading(false);
-      return;
-    }
-    
+  const onSubmit: SubmitHandler<ProductFormValues> = async (data: any) => {
     try {
-        const file = data.image?.[0];
-        if (!file) throw new Error("Please select an image");
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-        const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
-            method: "POST",
-            body: formData,
-        });
-
-        const cloudinaryData = await uploadResponse.json();
-
-        if (!uploadResponse.ok) {
-            throw new Error(cloudinaryData.error?.message || "Image upload failed.");
+      setIsLoading(true);
+  
+      // ✅ Validate image selection
+      const file = data.image?.[0];
+      if (!file) throw new Error("Please select an image before submitting.");
+  
+      // ✅ Prepare Cloudinary form data
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", "unsigned_upload"); // 👈 your preset name
+      formData.append("folder", "products"); // 👈 sends image into products/ folder automatically
+  
+      
+      const uploadResponse = await fetch(
+        "https://api.cloudinary.com/v1_1/dl2uvxfkz/image/upload",
+        {
+          method: "POST",
+          body: formData,
         }
+      );
+  
+      const cloudinaryData = await uploadResponse.json();
+  
+      if (!uploadResponse.ok) {
+        throw new Error(cloudinaryData.error?.message || "Image upload failed.");
+      }
+  
+      const imageUrl = cloudinaryData.secure_url;
+  
+      if (!firestore) throw new Error("Firestore is not initialized.");
 
-        const imageUrl = cloudinaryData.secure_url;
-
-        await addDoc(collection(firestore, "products"), {
-            name: data.name,
-            description: data.description,
-            price: data.price,
-            imageUrl,
-            createdAt: serverTimestamp(),
-        });
-
-        toast({
-          title: 'Product Added!',
-          description: `${data.name} has been added to your store.`,
-        });
-
-        router.push("/admin/products");
-
+      // ✅ Save product data in Firestore
+      await addDoc(collection(firestore, "products"), {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        imageUrl,
+        createdAt: new Date(),
+      });
+  
+      alert("✅ Product added successfully!");
+      router.push("/admin/products");
     } catch (error: any) {
-        console.error("Error adding product:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Uh oh! Something went wrong.',
-            description: error.message || 'Could not save the product. Please try again.',
-        });
+      console.error("❌ Error adding product:", error);
+      alert(error.message || "Something went wrong.");
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-};
+  };
 
   return (
     <Card className="max-w-2xl mx-auto">
