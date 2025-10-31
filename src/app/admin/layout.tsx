@@ -44,7 +44,7 @@ export default function AdminLayout({
       <div className="flex min-h-screen">
         <Sidebar>
           <SidebarHeader className="p-4">
-            <Link href="/" className="flex items-center gap-2 text-lg font-headline font-bold">
+            <Link href="/admin/dashboard" className="flex items-center gap-2 text-lg font-headline font-bold">
               <LogoIcon className="h-8 w-8 text-sidebar-primary" />
               <span className="text-sidebar-foreground">Namma Kadai Admin</span>
             </Link>
