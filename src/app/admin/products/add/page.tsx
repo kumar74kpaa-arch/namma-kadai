@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { addDocumentNonBlocking, useFirestore } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -68,17 +68,16 @@ export default function AddProductPage() {
     setIsLoading(true);
 
     try {
-        // Upload image to Firebase Storage
+        // 1. Upload image to Firebase Storage
         const imageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-        const uploadResult = await uploadBytes(imageRef, imageFile);
-        const imageUrl = await getDownloadURL(uploadResult.ref);
+        await uploadBytes(imageRef, imageFile);
+        const imageUrl = await getDownloadURL(imageRef);
 
-        // Add product to Firestore
-        const productsCollection = collection(firestore, 'products');
-        await addDocumentNonBlocking(productsCollection, {
+        // 2. Add product to Firestore
+        await addDoc(collection(firestore, 'products'), {
             ...data,
             imageUrl,
-            createdAt: new Date().toISOString(),
+            createdAt: serverTimestamp(),
         });
 
         toast({
@@ -95,6 +94,7 @@ export default function AddProductPage() {
             title: 'Uh oh! Something went wrong.',
             description: 'Could not add the product. Please try again.',
         });
+    } finally {
         setIsLoading(false);
     }
   };
