@@ -1,6 +1,6 @@
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
-import { getSdks } from '@/firebase'; // Using a server-side initialized instance
+import { getSdks } from '@/firebase/server-init'; // Using a server-side initialized instance
 
 // This function should be used in Server Components to fetch products.
 // It initializes a temporary connection to fetch data.
