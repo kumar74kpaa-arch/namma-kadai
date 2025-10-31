@@ -6,7 +6,6 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +31,10 @@ type ProductFormValues = z.infer<typeof productSchema>;
 type EditProductPageProps = {
   params: { id: string };
 };
+
+const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dl2uvxfkz/image/upload';
+const CLOUDINARY_UPLOAD_PRESET = 'namma_kadai_preset';
+
 
 function EditProductSkeleton() {
     return (
@@ -69,7 +72,6 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   const { id: productId } = params;
   const router = useRouter();
   const firestore = useFirestore();
-  const storage = getStorage();
   const { toast } = useToast();
   
   const productRef = useMemoFirebase(
@@ -108,12 +110,23 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     let imageUrl = product.imageUrl;
 
     try {
-        // If a new image is selected, upload it
+        // If a new image is selected, upload it to Cloudinary
         if (imageFile) {
-            const imageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-            const uploadResult = await uploadBytes(imageRef, imageFile);
-            imageUrl = await getDownloadURL(uploadResult.ref);
-            // Note: Old image is not deleted from storage to keep it simple.
+            const formData = new FormData();
+            formData.append('file', imageFile);
+            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            
+            const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error('Image upload failed.');
+            }
+
+            const cloudinaryData = await uploadResponse.json();
+            imageUrl = cloudinaryData.secure_url;
         }
 
         // Update product in Firestore
@@ -134,7 +147,8 @@ export default function EditProductPage({ params }: EditProductPageProps) {
             title: 'Uh oh! Something went wrong.',
             description: 'Could not update the product. Please try again.',
         });
-        setIsSubmitting(false);
+    } finally {
+      setIsSubmitting(false);
     }
   };
   

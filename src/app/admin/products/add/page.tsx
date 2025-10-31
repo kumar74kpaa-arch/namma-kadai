@@ -6,7 +6,6 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore } from '@/firebase';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -33,10 +32,12 @@ const productSchema = z.object({
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
+const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dl2uvxfkz/image/upload';
+const CLOUDINARY_UPLOAD_PRESET = 'namma_kadai_preset';
+
 export default function AddProductPage() {
   const router = useRouter();
   const firestore = useFirestore();
-  const storage = getStorage();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -67,35 +68,37 @@ export default function AddProductPage() {
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsLoading(true);
-    console.log("🚀 Starting Add Product...");
     const file = data.image[0] as File;
 
-    console.log("✅ File selected:", file?.name);
-    console.log("✅ Firebase Firestore:", firestore ? "Connected" : "Missing");
-    console.log("✅ Firebase Storage:", storage ? "Connected" : "Missing");
-
-    if (!firestore || !storage) {
+    if (!firestore) {
       toast({
         variant: 'destructive',
         title: 'Database Error',
-        description: 'Could not connect to the database or storage. Please try again.',
+        description: 'Could not connect to the database. Please try again.',
       });
       setIsLoading(false);
       return;
     }
 
     try {
-      // 1. Upload image to Firebase Storage
-      console.log("📤 Uploading image to Firebase...");
-      const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
+      // 1. Upload image to Cloudinary
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+      const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Image upload failed.');
+      }
+
+      const cloudinaryData = await uploadResponse.json();
+      const imageUrl = cloudinaryData.secure_url;
       
-      // 2. Get the download URL
-      const imageUrl = await getDownloadURL(storageRef);
-      console.log("🌐 Got download URL:", imageUrl);
-      
-      // 3. Add product to Firestore
-      console.log("📝 Adding Firestore document...");
+      // 2. Add product to Firestore
       await addDoc(collection(firestore, 'products'), {
         name: data.name,
         description: data.description,
@@ -103,7 +106,6 @@ export default function AddProductPage() {
         imageUrl,
         createdAt: serverTimestamp(),
       });
-      console.log("✅ Firestore document added successfully");
 
       toast({
           title: 'Product Added!',
