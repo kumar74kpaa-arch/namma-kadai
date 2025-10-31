@@ -68,7 +68,7 @@ export default function AdminOrdersPage() {
   const { toast } = useToast();
 
   const ordersQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'orders'), where('status', '!=', 'awaiting_payment_verification'), where('status', '!=', 'payment_rejected')) : null),
+    () => (firestore ? query(collection(firestore, 'orders'), where('status', 'not-in', ['awaiting_payment_verification', 'payment_rejected'])) : null),
     [firestore]
   );
   
