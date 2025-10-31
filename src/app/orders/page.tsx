@@ -46,7 +46,7 @@ function LiveMapView({ order }: { order: Order }) {
   }, [firestore, order.id]);
 
   useEffect(() => {
-    if (!mapRef.current || !window.google || !order.location) return;
+    if (!mapRef.current || typeof window.google === 'undefined' || !order.location) return;
 
     if (!mapInstanceRef.current) {
         mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
