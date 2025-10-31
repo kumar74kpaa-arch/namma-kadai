@@ -7,14 +7,57 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice } from "@/lib/utils";
-import { Minus, Plus, Trash2, ShoppingCart } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useFirestore, addDocumentNonBlocking, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
-import type { Order } from "@/lib/types";
+import type { Order, Location } from "@/lib/types";
+
+// A simple map component to show the location
+function MapView({ location, onLocationChange }: { location: Location, onLocationChange: (newLocation: Location) => void }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
+  useEffect(() => {
+    if (!mapRef.current || !window.google) return;
+    
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: location,
+      zoom: 16,
+      disableDefaultUI: true,
+    });
+
+    const marker = new window.google.maps.Marker({
+      position: location,
+      map,
+      draggable: true,
+    });
+
+    marker.addListener('dragstart', () => {
+      isDragging.current = true;
+    });
+
+    marker.addListener('dragend', () => {
+      isDragging.current = false;
+      const newPos = marker.getPosition();
+      if (newPos) {
+        onLocationChange({ lat: newPos.lat(), lng: newPos.lng() });
+      }
+    });
+
+    // Center map when location changes, but not while dragging
+    if(!isDragging.current) {
+      map.setCenter(location);
+    }
+
+  }, [location, onLocationChange]);
+
+  return <div ref={mapRef} className="h-64 w-full rounded-md bg-muted" />;
+}
+
 
 export default function CartPage() {
   const { cartItems, updateQuantity, removeFromCart, totalPrice, totalItems, clearCart } = useCart();
@@ -25,7 +68,58 @@ export default function CartPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [location, setLocation] = useState<Location | null>(null);
+
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleLocationUpdate = useCallback((newLocation: Location) => {
+    setLocation(newLocation);
+    // Reverse geocode to get address
+    if (window.google) {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: newLocation }, (results, status) => {
+        if (status === 'OK' && results && results[0]) {
+          setCustomerAddress(results[0].formatted_address);
+        } else {
+          console.warn('Geocode was not successful for the following reason: ' + status);
+        }
+      });
+    }
+  }, []);
+
+  const handleUseCurrentLocation = () => {
+    setIsLocating(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const newLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          handleLocationUpdate(newLocation);
+          setIsLocating(false);
+          toast({ title: "Location found!" });
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          toast({
+            variant: "destructive",
+            title: "Location Error",
+            description: "Could not get your location. Please enter your address manually.",
+          });
+          setIsLocating(false);
+        }
+      );
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Geolocation not supported",
+        description: "Your browser doesn't support location services.",
+      });
+      setIsLocating(false);
+    }
+  };
 
   const handleCheckout = async () => {
     if (!customerName || !customerPhone || !customerAddress) {
@@ -37,20 +131,11 @@ export default function CartPage() {
       return;
     }
 
-    if (!firestore) {
+    if (!firestore || !user) {
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not connect to the database. Please try again later.",
-        });
-        return;
-    }
-
-    if (!user) {
-        toast({
-            variant: "destructive",
-            title: "Not Logged In",
-            description: "You must be logged in to place an order. Please refresh the page.",
+            description: "Could not connect to the database. Please refresh and try again.",
         });
         return;
     }
@@ -62,6 +147,7 @@ export default function CartPage() {
       customerName,
       customerPhone,
       customerAddress,
+      location: location ?? undefined,
       orderDate: new Date().toISOString(),
       totalPrice,
       orderItems: cartItems.map(item => ({
@@ -85,6 +171,7 @@ export default function CartPage() {
       setCustomerName('');
       setCustomerPhone('');
       setCustomerAddress('');
+      setLocation(null);
     } catch (error) {
       console.error("Error creating order:", error);
       toast({
@@ -180,12 +267,19 @@ export default function CartPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="address">Shipping Address</Label>
-                    <Input id="address" placeholder="Enter your address" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Input id="address" placeholder="Enter your address or use current location" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
+                      <Button variant="outline" size="icon" onClick={handleUseCurrentLocation} disabled={isLocating}>
+                        <MapPin className="h-5 w-5"/>
+                        <span className="sr-only">Use Current Location</span>
+                      </Button>
+                    </div>
                   </div>
+                  {location && <MapView location={location} onLocationChange={handleLocationUpdate} />}
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full" size="lg" onClick={handleCheckout} disabled={isCheckingOut}>
+              <Button className="w-full" size="lg" onClick={handleCheckout} disabled={isCheckingOut || isLocating}>
                 {isCheckingOut ? 'Placing Order...' : 'Proceed to Checkout'}
               </Button>
             </CardFooter>

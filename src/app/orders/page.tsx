@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ServerCrash, PackageSearch } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -88,7 +87,7 @@ export default function MyOrdersPage() {
         <div className="grid gap-6 md:gap-8">
             {sortedOrders.map(order => (
                 <Card key={order.id} className="overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between gap-4 bg-muted/50">
+                    <CardHeader className="flex flex-row items-center justify-between gap-4 bg-muted/50 p-4 md:p-6">
                         <div>
                             <CardTitle className="text-lg">Order #{order.id.substring(0, 7)}</CardTitle>
                             <p className="text-sm text-muted-foreground">
@@ -107,17 +106,24 @@ export default function MyOrdersPage() {
                             {order.status}
                         </Badge>
                     </CardHeader>
-                    <CardContent className="p-6">
-                        <ul className="space-y-3">
-                            {order.orderItems.map(item => (
-                                <li key={item.id} className="flex justify-between items-center text-sm">
-                                    <span>{item.name} <span className="text-muted-foreground">x {item.quantity}</span></span>
-                                    <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
-                                </li>
-                            ))}
-                        </ul>
+                    <CardContent className="p-4 md:p-6 grid gap-4">
+                        <div>
+                            <h4 className="font-semibold mb-2">Items</h4>
+                            <ul className="space-y-2">
+                                {order.orderItems.map(item => (
+                                    <li key={item.id} className="flex justify-between items-center text-sm">
+                                        <span>{item.name} <span className="text-muted-foreground">x {item.quantity}</span></span>
+                                        <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                         <div>
+                            <h4 className="font-semibold mb-1">Delivery Address</h4>
+                            <p className="text-sm text-muted-foreground">{order.customerAddress}</p>
+                        </div>
                     </CardContent>
-                    <CardFooter className="bg-muted/50 p-6 flex justify-end">
+                    <CardFooter className="bg-muted/50 p-4 md:p-6 flex justify-end">
                         <div className="text-right">
                             <p className="text-sm text-muted-foreground">Total</p>
                             <p className="text-xl font-bold">{formatPrice(order.totalPrice)}</p>

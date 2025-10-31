@@ -18,12 +18,18 @@ export type OrderItem = {
   quantity: number;
 };
 
+export type Location = {
+  lat: number;
+  lng: number;
+};
+
 export type Order = {
   id: string;
   userId: string;
   customerName: string;
   customerPhone: string;
   customerAddress: string;
+  location?: Location;
   orderDate: string; // ISO 8601 format
   totalPrice: number;
   orderItems: OrderItem[];
