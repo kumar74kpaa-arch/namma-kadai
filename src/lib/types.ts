@@ -30,6 +30,7 @@ export type Order = {
   customerPhone: string;
   customerAddress: string;
   location?: Location;
+  deliveryLocation?: Location;
   orderDate: string; // ISO 8601 format
   totalPrice: number;
   orderItems: OrderItem[];

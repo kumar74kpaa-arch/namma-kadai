@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ServerCrash, PackageSearch, MapPin, PersonStanding } from 'lucide-react';
+import { ServerCrash, PackageSearch } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -25,7 +25,9 @@ const statusConfig = {
 function LiveMapView({ order }: { order: Order }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const firestore = useFirestore();
-  const [deliveryLocation, setDeliveryLocation] = useState<Location | null>(null);
+  const [deliveryLocation, setDeliveryLocation] = useState<Location | null>(order.deliveryLocation || null);
+  const deliveryMarkerRef = useRef<google.maps.Marker | null>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
 
   useEffect(() => {
     if (!firestore) return;
@@ -44,42 +46,47 @@ function LiveMapView({ order }: { order: Order }) {
   useEffect(() => {
     if (!mapRef.current || !window.google || !order.location) return;
 
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: order.location,
-      zoom: 14,
-      disableDefaultUI: true,
-    });
+    if (!mapInstanceRef.current) {
+        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+            center: order.location,
+            zoom: 14,
+            disableDefaultUI: true,
+        });
 
-    const customerMarker = new window.google.maps.Marker({
-      position: order.location,
-      map: map,
-      title: "Your Location",
-    });
-
-    let deliveryMarker: google.maps.Marker | null = null;
-    if (deliveryLocation) {
-        deliveryMarker = new window.google.maps.Marker({
-            position: deliveryLocation,
-            map: map,
-            title: "Delivery Person",
-            icon: {
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 8,
-                fillColor: "#4285F4",
-                fillOpacity: 1,
-                strokeColor: "white",
-                strokeWeight: 2,
-            }
+        new window.google.maps.Marker({
+            position: order.location,
+            map: mapInstanceRef.current,
+            title: "Your Location",
         });
     }
-
+    
+    if (deliveryLocation) {
+        if (!deliveryMarkerRef.current) {
+            deliveryMarkerRef.current = new window.google.maps.Marker({
+                position: deliveryLocation,
+                map: mapInstanceRef.current,
+                title: "Delivery Person",
+                icon: {
+                    path: window.google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: "#4285F4",
+                    fillOpacity: 1,
+                    strokeColor: "white",
+                    strokeWeight: 2,
+                }
+            });
+        } else {
+            deliveryMarkerRef.current.setPosition(deliveryLocation);
+        }
+    }
+    
     if (deliveryLocation && order.location) {
         const bounds = new window.google.maps.LatLngBounds();
         bounds.extend(order.location);
         bounds.extend(deliveryLocation);
-        map.fitBounds(bounds);
+        mapInstanceRef.current.fitBounds(bounds);
     } else {
-        map.setCenter(order.location);
+        mapInstanceRef.current.setCenter(order.location);
     }
   
   }, [order.location, deliveryLocation]);
