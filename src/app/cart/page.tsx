@@ -228,7 +228,7 @@ export default function CartPage() {
                   <div className="flex justify-center">
                     <Image src="/assets/upi_qr.png" alt="UPI QR Code" width={200} height={200} className="rounded-md" />
                   </div>
-                  <p className="text-center text-sm font-mono text-muted-foreground">paytm.s7kThqj@gety</p>
+                  <p className="text-center text-sm font-mono text-muted-foreground">paytm.s7kThqj@pty</p>
                   <div className="text-center font-bold text-lg">
                       Total Amount: {formatPrice(totalPrice)}
                   </div>
