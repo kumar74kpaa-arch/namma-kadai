@@ -68,7 +68,6 @@ export default function AddProductPage() {
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsLoading(true);
-    const file = data.image[0] as File;
 
     if (!firestore) {
       toast({
@@ -79,54 +78,54 @@ export default function AddProductPage() {
       setIsLoading(false);
       return;
     }
-
+    
     try {
-      // 1. Upload image to Cloudinary
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        const file = data.image?.[0];
+        if (!file) throw new Error("Please select an image");
 
-      const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
-        method: 'POST',
-        body: formData,
-      });
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-      const cloudinaryData = await uploadResponse.json();
+        const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
+            method: "POST",
+            body: formData,
+        });
 
-      if (!uploadResponse.ok) {
-        // Throw an error with the message from Cloudinary
-        throw new Error(cloudinaryData.error?.message || 'Image upload failed.');
-      }
-      
-      const imageUrl = cloudinaryData.secure_url;
-      
-      // 2. Add product to Firestore
-      await addDoc(collection(firestore, 'products'), {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        imageUrl,
-        createdAt: serverTimestamp(),
-      });
+        const cloudinaryData = await uploadResponse.json();
 
-      toast({
+        if (!uploadResponse.ok) {
+            throw new Error(cloudinaryData.error?.message || "Image upload failed.");
+        }
+
+        const imageUrl = cloudinaryData.secure_url;
+
+        await addDoc(collection(firestore, "products"), {
+            name: data.name,
+            description: data.description,
+            price: data.price,
+            imageUrl,
+            createdAt: serverTimestamp(),
+        });
+
+        toast({
           title: 'Product Added!',
           description: `${data.name} has been added to your store.`,
-      });
+        });
 
-      router.push('/admin/products');
+        router.push("/admin/products");
 
     } catch (error: any) {
-      console.error("Error adding product:", error);
-      toast({
-          variant: 'destructive',
-          title: 'Uh oh! Something went wrong.',
-          description: error.message || 'Could not save the product. Please try again.',
-      });
+        console.error("Error adding product:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Uh oh! Something went wrong.',
+            description: error.message || 'Could not save the product. Please try again.',
+        });
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  };
+};
 
   return (
     <Card className="max-w-2xl mx-auto">
