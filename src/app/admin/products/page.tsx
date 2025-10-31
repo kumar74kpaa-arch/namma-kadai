@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useCollection, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, deleteDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
 import { formatPrice } from '@/lib/utils';
@@ -73,7 +73,10 @@ function ProductsSkeleton() {
 
 export default function AdminProductsPage() {
   const firestore = useFirestore();
-  const productsCollection = firestore ? collection(firestore, 'products') : null;
+  const productsCollection = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'products') : null),
+    [firestore]
+  );
   const { data: products, isLoading, error } = useCollection<Product>(productsCollection);
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
