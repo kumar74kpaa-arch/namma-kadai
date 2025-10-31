@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, query, where } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { formatPrice, cn } from '@/lib/utils';
 import {
@@ -17,7 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ServerCrash, CheckCircle, XCircle, Truck, PackageCheck } from 'lucide-react';
+import { ServerCrash, CheckCircle, XCircle, Truck, PackageCheck, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -54,6 +54,8 @@ function OrdersSkeleton() {
 }
 
 const statusConfig = {
+    awaiting_payment_verification: { label: 'Awaiting Payment', color: 'bg-orange-500 hover:bg-orange-600', variant: 'secondary' as const },
+    payment_rejected: { label: 'Payment Rejected', color: '', variant: 'destructive' as const },
     pending: { label: 'Pending', color: 'bg-yellow-500 hover:bg-yellow-600', variant: 'secondary' as const },
     approved: { label: 'Approved', color: 'bg-green-600 hover:bg-green-700 text-white', variant: 'default' as const },
     rejected: { label: 'Rejected', color: '', variant: 'destructive' as const },
@@ -66,7 +68,7 @@ export default function AdminOrdersPage() {
   const { toast } = useToast();
 
   const ordersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'orders') : null),
+    () => (firestore ? query(collection(firestore, 'orders'), where('status', '!=', 'awaiting_payment_verification'), where('status', '!=', 'payment_rejected')) : null),
     [firestore]
   );
   
@@ -91,7 +93,7 @@ export default function AdminOrdersPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold font-headline">🛍️ Order Requests</h1>
-        <p className="text-muted-foreground">View and manage all incoming orders.</p>
+        <p className="text-muted-foreground">View and manage all processed orders.</p>
       </div>
 
       {isLoading && <OrdersSkeleton />}
@@ -140,6 +142,13 @@ export default function AdminOrdersPage() {
                                 <TableCell className="text-center">{order.orderItems.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                                 <TableCell>{order.customerAddress}</TableCell>
                                 <TableCell className="flex flex-col gap-2 items-start">
+                                    {order.status === 'awaiting_payment_verification' && (
+                                        <Button variant="outline" size="sm" asChild>
+                                          <Link href="/admin/payments" className="w-full justify-start border-orange-500 text-orange-600 hover:bg-orange-100 hover:text-orange-700">
+                                            <Wallet className="mr-2 h-4 w-4" />Verify Payment
+                                          </Link>
+                                        </Button>
+                                    )}
                                     {order.status === 'pending' && (
                                         <>
                                             <Button variant="outline" size="sm" className="w-full justify-start border-green-500 text-green-600 hover:bg-green-100 hover:text-green-700" onClick={() => handleUpdateStatus(order.id, 'approved')}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
@@ -168,8 +177,8 @@ export default function AdminOrdersPage() {
        {!isLoading && !error && (!orders || orders.length === 0) && (
         <Card className="flex items-center justify-center p-12">
             <div className="text-center">
-                <h3 className="text-xl font-semibold">No Orders Yet</h3>
-                <p className="text-muted-foreground mt-2">As soon as customers start placing orders, they will appear here.</p>
+                <h3 className="text-xl font-semibold">No Processed Orders Yet</h3>
+                <p className="text-muted-foreground mt-2">Approved orders will appear here, ready for delivery management.</p>
             </div>
         </Card>
       )}

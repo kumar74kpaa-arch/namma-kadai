@@ -7,184 +7,123 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice } from "@/lib/utils";
-import { Minus, Plus, Trash2, ShoppingCart, MapPin } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Upload, CheckCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useFirestore, addDocumentNonBlocking, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
-import type { Order, Location } from "@/lib/types";
-
-// A simple map component to show the location
-function MapView({ location, onLocationChange }: { location: Location, onLocationChange: (newLocation: Location) => void }) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-
-  useEffect(() => {
-    if (!mapRef.current || !window.google) return;
-    
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: location,
-      zoom: 16,
-      disableDefaultUI: true,
-    });
-
-    const marker = new window.google.maps.Marker({
-      position: location,
-      map,
-      draggable: true,
-    });
-
-    marker.addListener('dragstart', () => {
-      isDragging.current = true;
-    });
-
-    marker.addListener('dragend', () => {
-      isDragging.current = false;
-      const newPos = marker.getPosition();
-      if (newPos) {
-        onLocationChange({ lat: newPos.lat(), lng: newPos.lng() });
-      }
-    });
-
-    // Center map when location changes, but not while dragging
-    if(!isDragging.current) {
-      map.setCenter(location);
-    }
-
-  }, [location, onLocationChange]);
-
-  return <div ref={mapRef} className="h-64 w-full rounded-md bg-muted" />;
-}
-
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import type { Order } from "@/lib/types";
 
 export default function CartPage() {
   const { cartItems, updateQuantity, removeFromCart, totalPrice, totalItems, clearCart } = useCart();
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const storage = getStorage();
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
-  const [location, setLocation] = useState<Location | null>(null);
+  
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [orderPlaced, setOrderPlaced] = useState(false);
 
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
 
-  const handleLocationUpdate = useCallback((newLocation: Location) => {
-    setLocation(newLocation);
-    // Reverse geocode to get address
-    if (window.google) {
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ location: newLocation }, (results, status) => {
-        if (status === 'OK' && results && results[0]) {
-          setCustomerAddress(results[0].formatted_address);
-        } else {
-          console.warn('Geocode was not successful for the following reason: ' + status);
-        }
-      });
-    }
-  }, []);
-
-  const handleUseCurrentLocation = () => {
-    setIsLocating(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const newLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          handleLocationUpdate(newLocation);
-          setIsLocating(false);
-          toast({ title: "Location found!" });
-        },
-        (error) => {
-          console.error("Geolocation error:", error);
-          toast({
-            variant: "destructive",
-            title: "Location Error",
-            description: "Could not get your location. Please enter your address manually.",
-          });
-          setIsLocating(false);
-        }
-      );
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Geolocation not supported",
-        description: "Your browser doesn't support location services.",
-      });
-      setIsLocating(false);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (['image/jpeg', 'image/png'].includes(file.type)) {
+        setScreenshotFile(file);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Invalid File Type",
+          description: "Please upload a JPEG or PNG image.",
+        });
+      }
     }
   };
 
-  const handleCheckout = async () => {
+  const handlePlaceOrder = async () => {
     if (!customerName || !customerPhone || !customerAddress) {
       toast({
         variant: "destructive",
         title: "Missing Information",
-        description: "Please fill out all customer details before checking out.",
+        description: "Please fill out all customer details.",
       });
       return;
     }
-
+    if (!screenshotFile) {
+      toast({
+        variant: "destructive",
+        title: "Missing Payment Screenshot",
+        description: "Please upload a screenshot of your payment.",
+      });
+      return;
+    }
     if (!firestore || !user) {
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not connect to the database. Please refresh and try again.",
+            description: "Could not connect to the database. Please try again.",
         });
         return;
     }
 
-    setIsCheckingOut(true);
-
-    const order: Omit<Order, 'id'> = {
-      userId: user.uid,
-      customerName,
-      customerPhone,
-      customerAddress,
-      location: location ?? undefined,
-      orderDate: new Date().toISOString(),
-      totalPrice,
-      orderItems: cartItems.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-      })),
-      status: 'pending',
-    };
+    setIsPlacingOrder(true);
 
     try {
+      // 1. Upload screenshot to Firebase Storage
+      const screenshotRef = ref(storage, `payment_screenshots/${user.uid}/${Date.now()}_${screenshotFile.name}`);
+      const uploadResult = await uploadBytes(screenshotRef, screenshotFile);
+      const screenshotUrl = await getDownloadURL(uploadResult.ref);
+
+      // 2. Create order document in Firestore
+      const order: Omit<Order, 'id'> = {
+        userId: user.uid,
+        customerName,
+        customerPhone,
+        customerAddress,
+        orderDate: new Date().toISOString(),
+        totalPrice,
+        orderItems: cartItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        status: 'awaiting_payment_verification',
+        paymentScreenshotUrl: screenshotUrl,
+      };
+      
       const ordersCollection = collection(firestore, 'orders');
       await addDocumentNonBlocking(ordersCollection, order);
       
+      // 3. Update UI
       toast({
-        title: "Checkout Successful!",
-        description: "Thank you for your order. We will be in touch shortly.",
+        title: "Order Placed Successfully!",
+        description: "We have received your order and are verifying your payment.",
       });
+      setOrderPlaced(true);
       clearCart();
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerAddress('');
-      setLocation(null);
+
     } catch (error) {
-      console.error("Error creating order:", error);
+      console.error("Error placing order:", error);
       toast({
         variant: "destructive",
-        title: "Checkout Failed",
+        title: "Order Failed",
         description: "There was a problem placing your order. Please try again.",
       });
     } finally {
-        setIsCheckingOut(false);
+        setIsPlacingOrder(false);
     }
   };
 
-  if (totalItems === 0) {
+  if (totalItems === 0 && !orderPlaced) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <ShoppingCart className="mx-auto h-24 w-24 text-muted-foreground" />
@@ -195,6 +134,24 @@ export default function CartPage() {
         </Button>
       </div>
     );
+  }
+
+  if (orderPlaced) {
+    return (
+        <div className="container mx-auto px-4 py-16 text-center">
+            <CheckCircle className="mx-auto h-24 w-24 text-green-500" />
+            <h1 className="mt-6 text-2xl font-headline font-semibold">Thank You For Your Order!</h1>
+            <p className="mt-2 text-muted-foreground">We are verifying your payment and will process your order shortly. You can track the status on the "My Orders" page.</p>
+            <div className="flex justify-center gap-4 mt-6">
+                <Button asChild>
+                    <Link href="/orders">View My Orders</Link>
+                </Button>
+                <Button asChild variant="outline">
+                    <Link href="/">Continue Shopping</Link>
+                </Button>
+            </div>
+        </div>
+    )
   }
 
   return (
@@ -244,19 +201,11 @@ export default function CartPage() {
         <div className="lg:col-span-1">
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline">Order Summary</CardTitle>
+              <CardTitle className="font-headline">Confirm Order</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-6">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Subtotal</span>
-                <span>{formatPrice(totalPrice)}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between font-bold text-lg">
-                <span>Total</span>
-                <span>{formatPrice(totalPrice)}</span>
-              </div>
-              <div className="grid gap-4 mt-4">
+               {/* Delivery Details */}
+               <div className="grid gap-4">
                  <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
                     <Input id="name" placeholder="Enter your name" value={customerName} onChange={e => setCustomerName(e.target.value)} />
@@ -267,20 +216,38 @@ export default function CartPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="address">Shipping Address</Label>
-                    <div className="flex gap-2">
-                      <Input id="address" placeholder="Enter your address or use current location" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
-                      <Button variant="outline" size="icon" onClick={handleUseCurrentLocation} disabled={isLocating}>
-                        <MapPin className="h-5 w-5"/>
-                        <span className="sr-only">Use Current Location</span>
-                      </Button>
-                    </div>
+                    <Input id="address" placeholder="Enter your address" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
                   </div>
-                  {location && <MapView location={location} onLocationChange={handleLocationUpdate} />}
               </div>
+              
+              <Separator />
+
+              {/* Payment Section */}
+              <div className="space-y-4 p-4 rounded-lg bg-muted/50">
+                  <h3 className="font-semibold text-center">📲 Scan to Pay via UPI</h3>
+                  <div className="flex justify-center">
+                    <Image src="/assets/upi_qr.png" alt="UPI QR Code" width={200} height={200} className="rounded-md" />
+                  </div>
+                  <p className="text-center text-sm font-mono text-muted-foreground">paytm.s7kThqj@gety</p>
+                  <div className="text-center font-bold text-lg">
+                      Total Amount: {formatPrice(totalPrice)}
+                  </div>
+                   <p className="text-xs text-center text-muted-foreground">Please complete the payment before confirming your order.</p>
+              </div>
+
+               {/* Screenshot Upload */}
+              <div className="space-y-2">
+                  <Label htmlFor="screenshot">Upload Payment Screenshot</Label>
+                  <div className="flex items-center gap-2">
+                    <Input id="screenshot" type="file" accept="image/png, image/jpeg" onChange={handleFileChange} className="flex-grow" />
+                    {screenshotFile && <CheckCircle className="h-5 w-5 text-green-500" />}
+                  </div>
+              </div>
+
             </CardContent>
             <CardFooter>
-              <Button className="w-full" size="lg" onClick={handleCheckout} disabled={isCheckingOut || isLocating}>
-                {isCheckingOut ? 'Placing Order...' : 'Proceed to Checkout'}
+              <Button className="w-full" size="lg" onClick={handlePlaceOrder} disabled={isPlacingOrder}>
+                 {isPlacingOrder ? 'Placing Order...' : 'Confirm Order'}
               </Button>
             </CardFooter>
           </Card>

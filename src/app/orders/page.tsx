@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 
 
 const statusConfig = {
+    awaiting_payment_verification: { label: 'Awaiting Payment', color: 'bg-orange-500 hover:bg-orange-600', variant: 'secondary' as const },
+    payment_rejected: { label: 'Payment Rejected', color: '', variant: 'destructive' as const },
     pending: { label: 'Pending', color: 'bg-yellow-500 hover:bg-yellow-600', variant: 'secondary' as const },
     approved: { label: 'Approved', color: 'bg-green-600 hover:bg-green-700 text-white', variant: 'default' as const },
     rejected: { label: 'Rejected', color: '', variant: 'destructive' as const },
@@ -85,7 +87,7 @@ function LiveMapView({ order }: { order: Order }) {
         bounds.extend(order.location);
         bounds.extend(deliveryLocation);
         mapInstanceRef.current.fitBounds(bounds);
-    } else {
+    } else if (order.location) {
         mapInstanceRef.current.setCenter(order.location);
     }
   
@@ -182,8 +184,8 @@ export default function MyOrdersPage() {
                                 Placed on {new Date(order.orderDate).toLocaleDateString()}
                             </p>
                         </div>
-                        <Badge variant={statusConfig[order.status].variant} className={cn("capitalize text-sm py-1 px-3", statusConfig[order.status].color)}>
-                            {statusConfig[order.status].label}
+                        <Badge variant={statusConfig[order.status]?.variant || 'default'} className={cn("capitalize text-sm py-1 px-3", statusConfig[order.status]?.color)}>
+                            {statusConfig[order.status]?.label || order.status}
                         </Badge>
                     </CardHeader>
                     <CardContent className="p-4 md:p-6 grid gap-4">

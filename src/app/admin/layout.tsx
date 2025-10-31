@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
-import { LayoutDashboard, ShoppingBag, Users } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Users, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { LogoIcon } from '@/components/icons/logo-icon';
 
@@ -60,10 +60,10 @@ export default function AdminLayout({
                 </Link>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <Link href="/admin/products" className="w-full">
-                  <SidebarMenuButton tooltip="Products">
-                    <ShoppingBag />
-                    <span>Products</span>
+                <Link href="/admin/payments" className="w-full">
+                  <SidebarMenuButton tooltip="Payments">
+                    <CreditCard />
+                    <span>Payments</span>
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
@@ -72,6 +72,14 @@ export default function AdminLayout({
                   <SidebarMenuButton tooltip="Orders">
                     <Users />
                     <span>Orders</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Link href="/admin/products" className="w-full">
+                  <SidebarMenuButton tooltip="Products">
+                    <ShoppingBag />
+                    <span>Products</span>
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>

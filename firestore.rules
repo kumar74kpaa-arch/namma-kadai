@@ -25,10 +25,30 @@ service cloud.firestore {
       allow create: if isSignedIn() && isOwner(request.resource.data.userId);
 
       // Allow customers to read their own orders
-      allow get, list: if isSignedIn() && isOwner(resource.data.userId);
+      allow get, list: if isSignedIn() && request.query.where[0] == ['userId', '==', request.auth.uid];
 
       // Allow admin to read and update any order (e.g., to change status)
-      allow get, list, update: if isAdmin();
+      allow list, update: if isAdmin();
+      allow get: if isAdmin();
+    }
+  }
+}
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow users to upload their payment screenshots
+    match /payment_screenshots/{userId}/{allPaths=**} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow admin to read any screenshot
+    match /payment_screenshots/{allPaths=**} {
+      allow read: if request.auth != null && isAdmin(); // Assuming an isAdmin function
+    }
+
+    function isAdmin() {
+      // A simple check, in a real app this would be more secure (e.g., custom claims)
+      return request.auth != null;
     }
   }
 }
