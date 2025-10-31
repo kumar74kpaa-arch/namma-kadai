@@ -33,7 +33,7 @@ type EditProductPageProps = {
 };
 
 const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dl2uvxfkz/image/upload';
-const CLOUDINARY_UPLOAD_PRESET = 'namma_kadai_preset';
+const CLOUDINARY_UPLOAD_PRESET = 'unsigned_upload';
 
 
 function EditProductSkeleton() {
@@ -115,6 +115,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
             const formData = new FormData();
             formData.append('file', imageFile);
             formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            formData.append("folder", "products");
             
             const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
               method: 'POST',
