@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { formatPrice, cn } from '@/lib/utils';
 import {
@@ -13,11 +13,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ServerCrash } from 'lucide-react';
+import { ServerCrash, CheckCircle, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 function OrdersSkeleton() {
     return (
@@ -28,8 +30,9 @@ function OrdersSkeleton() {
                         <TableRow>
                             <TableHead>Customer</TableHead>
                             <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead className="text-right">Total</TableHead>
-                            <TableHead>Items</TableHead>
+                            <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -37,8 +40,9 @@ function OrdersSkeleton() {
                             <TableRow key={i}>
                                 <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                                 <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                                 <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
-                                <TableCell><Skeleton className="h-5 w-8" /></TableCell>
+                                <TableCell className="flex gap-2"><Skeleton className="h-8 w-8" /><Skeleton className="h-8 w-8" /></TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -50,6 +54,7 @@ function OrdersSkeleton() {
 
 export default function AdminOrdersPage() {
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const ordersQuery = useMemoFirebase(
     () => (firestore ? collection(firestore, 'orders') : null),
@@ -60,14 +65,24 @@ export default function AdminOrdersPage() {
 
   const sortedOrders = useMemo(() => {
     if (!orders) return [];
+    // sort by date desc
     return [...orders].sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   }, [orders]);
 
+  const handleUpdateStatus = (orderId: string, status: 'approved' | 'rejected') => {
+    if (!firestore) return;
+    const orderRef = doc(firestore, 'orders', orderId);
+    updateDocumentNonBlocking(orderRef, { status });
+    toast({
+        title: `Order ${status}`,
+        description: `The order has been successfully ${status}.`,
+    })
+  }
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold font-headline">Customer Orders</h1>
+        <h1 className="text-3xl font-bold font-headline">🛍️ Order Requests</h1>
         <p className="text-muted-foreground">View and manage all incoming orders.</p>
       </div>
 
@@ -91,9 +106,11 @@ export default function AdminOrdersPage() {
                         <TableRow>
                             <TableHead>Customer</TableHead>
                             <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-center">Items</TableHead>
                             <TableHead>Address</TableHead>
+                            <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -106,9 +123,42 @@ export default function AdminOrdersPage() {
                                 <TableCell>
                                     {new Date(order.orderDate).toLocaleDateString()}
                                 </TableCell>
+                                <TableCell>
+                                    <Badge variant={
+                                        order.status === 'approved' ? 'default' :
+                                        order.status === 'rejected' ? 'destructive' :
+                                        'secondary'
+                                    } className={cn(
+                                        "capitalize",
+                                        order.status === 'approved' && 'bg-green-600 hover:bg-green-700 text-white',
+                                        order.status === 'pending' && 'bg-yellow-500 hover:bg-yellow-600'
+                                    )}>
+                                        {order.status}
+                                    </Badge>
+                                </TableCell>
                                 <TableCell className="text-right">{formatPrice(order.totalPrice)}</TableCell>
                                 <TableCell className="text-center">{order.orderItems.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                                 <TableCell>{order.customerAddress}</TableCell>
+                                <TableCell className="flex gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="text-green-600 hover:bg-green-100 hover:text-green-700 border-green-600"
+                                        onClick={() => handleUpdateStatus(order.id, 'approved')}
+                                        disabled={order.status === 'approved'}
+                                    >
+                                        <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="text-red-600 hover:bg-red-100 hover:text-red-700 border-red-600"
+                                        onClick={() => handleUpdateStatus(order.id, 'rejected')}
+                                        disabled={order.status === 'rejected'}
+                                    >
+                                        <XCircle className="h-4 w-4" />
+                                    </Button>
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

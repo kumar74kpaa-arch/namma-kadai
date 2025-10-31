@@ -12,7 +12,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { useFirestore, addDocumentNonBlocking } from "@/firebase";
+import { useFirestore, addDocumentNonBlocking, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 import type { Order } from "@/lib/types";
 
@@ -20,6 +20,7 @@ export default function CartPage() {
   const { cartItems, updateQuantity, removeFromCart, totalPrice, totalItems, clearCart } = useCart();
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -45,9 +46,19 @@ export default function CartPage() {
         return;
     }
 
+    if (!user) {
+        toast({
+            variant: "destructive",
+            title: "Not Logged In",
+            description: "You must be logged in to place an order. Please refresh the page.",
+        });
+        return;
+    }
+
     setIsCheckingOut(true);
 
     const order: Omit<Order, 'id'> = {
+      userId: user.uid,
       customerName,
       customerPhone,
       customerAddress,
@@ -59,6 +70,7 @@ export default function CartPage() {
         price: item.price,
         quantity: item.quantity,
       })),
+      status: 'pending',
     };
 
     try {

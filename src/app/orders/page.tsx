@@ -1,0 +1,142 @@
+'use client';
+
+import { useMemo } from 'react';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import type { Order } from '@/lib/types';
+import { formatPrice, cn } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ServerCrash, PackageSearch } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+
+function OrdersSkeleton() {
+    return (
+        <div className="grid gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+                <Card key={i}>
+                    <CardHeader>
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-4 w-32" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-2">
+                             <Skeleton className="h-5 w-full" />
+                             <Skeleton className="h-5 w-2/3" />
+                        </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-between">
+                        <Skeleton className="h-8 w-24" />
+                        <Skeleton className="h-6 w-28" />
+                    </CardFooter>
+                </Card>
+            ))}
+        </div>
+    )
+}
+
+export default function MyOrdersPage() {
+  const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
+
+  const ordersQuery = useMemoFirebase(
+    () => (firestore && user ? query(collection(firestore, 'orders'), where('userId', '==', user.uid)) : null),
+    [firestore, user]
+  );
+  
+  const { data: orders, isLoading, error } = useCollection<Order>(ordersQuery);
+
+  const sortedOrders = useMemo(() => {
+    if (!orders) return [];
+    return [...orders].sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
+  }, [orders]);
+
+  if (isUserLoading || (isLoading && !orders)) {
+    return (
+        <div className="container mx-auto px-4 py-12">
+            <div className="mb-8">
+                <h1 className="text-3xl md:text-4xl font-bold font-headline">📦 My Orders</h1>
+                <p className="text-muted-foreground">Checking for your recent orders...</p>
+            </div>
+            <OrdersSkeleton />
+        </div>
+    )
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-12">
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold font-headline">📦 My Orders</h1>
+        <p className="text-muted-foreground">Here's a list of your past and current orders.</p>
+      </div>
+
+      {error && (
+         <Alert variant="destructive">
+            <ServerCrash className="h-4 w-4" />
+            <AlertTitle>Error Loading Orders</AlertTitle>
+            <AlertDescription>
+                There was a problem fetching your orders. Please try refreshing the page.
+            </AlertDescription>
+        </Alert>
+      )}
+
+      {!isLoading && !error && sortedOrders.length > 0 && (
+        <div className="grid gap-6 md:gap-8">
+            {sortedOrders.map(order => (
+                <Card key={order.id} className="overflow-hidden">
+                    <CardHeader className="flex flex-row items-center justify-between gap-4 bg-muted/50">
+                        <div>
+                            <CardTitle className="text-lg">Order #{order.id.substring(0, 7)}</CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                                Placed on {new Date(order.orderDate).toLocaleDateString()}
+                            </p>
+                        </div>
+                        <Badge variant={
+                            order.status === 'approved' ? 'default' :
+                            order.status === 'rejected' ? 'destructive' :
+                            'secondary'
+                        } className={cn(
+                            "capitalize text-sm py-1 px-3",
+                            order.status === 'approved' && 'bg-green-600 hover:bg-green-700 text-white',
+                            order.status === 'pending' && 'bg-yellow-500 hover:bg-yellow-600'
+                        )}>
+                            {order.status}
+                        </Badge>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                        <ul className="space-y-3">
+                            {order.orderItems.map(item => (
+                                <li key={item.id} className="flex justify-between items-center text-sm">
+                                    <span>{item.name} <span className="text-muted-foreground">x {item.quantity}</span></span>
+                                    <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </CardContent>
+                    <CardFooter className="bg-muted/50 p-6 flex justify-end">
+                        <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Total</p>
+                            <p className="text-xl font-bold">{formatPrice(order.totalPrice)}</p>
+                        </div>
+                    </CardFooter>
+                </Card>
+            ))}
+        </div>
+      )}
+       {!isLoading && !error && sortedOrders.length === 0 && (
+        <div className="text-center border-2 border-dashed rounded-lg p-12">
+            <PackageSearch className="mx-auto h-16 w-16 text-muted-foreground" />
+            <h3 className="mt-6 text-xl font-semibold">No Orders Found</h3>
+            <p className="text-muted-foreground mt-2">You haven't placed any orders yet. Let's change that!</p>
+            <Button asChild className="mt-6">
+              <Link href="/">Start Shopping</Link>
+            </Button>
+        </div>
+      )}
+    </div>
+  );
+}

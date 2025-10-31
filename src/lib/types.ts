@@ -20,10 +20,12 @@ export type OrderItem = {
 
 export type Order = {
   id: string;
+  userId: string;
   customerName: string;
   customerPhone: string;
   customerAddress: string;
   orderDate: string; // ISO 8601 format
   totalPrice: number;
   orderItems: OrderItem[];
+  status: 'pending' | 'approved' | 'rejected';
 };

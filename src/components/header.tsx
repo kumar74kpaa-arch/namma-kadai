@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, User } from "lucide-react";
+import { ShoppingCart, User, Package } from "lucide-react";
 
 import { useCart } from "@/context/cart-provider";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/icons/logo-icon";
+import { useUser } from "@/firebase";
 
 export function Header() {
   const { totalItems } = useCart();
+  const { user, isUserLoading } = useUser();
 
   return (
     <header className="bg-card/80 backdrop-blur-sm border-b sticky top-0 z-40">
@@ -17,7 +19,14 @@ export function Header() {
           <LogoIcon className="h-6 w-6 text-primary" />
           Namma Kadai
         </Link>
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-2 md:gap-4">
+          {user && !isUserLoading && (
+            <Link href="/orders">
+              <Button variant="ghost" size="icon" aria-label="My Orders">
+                <Package className="h-5 w-5" />
+              </Button>
+            </Link>
+          )}
           <Link href="/cart">
             <Button variant="ghost" size="icon" aria-label="Shopping Cart">
               <div className="relative">

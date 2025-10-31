@@ -7,6 +7,7 @@ import { Footer } from '@/components/footer';
 import { CartProvider } from '@/context/cart-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
+import { AnonymousAuthProvider } from '@/context/anonymous-auth-provider';
 
 export const metadata: Metadata = {
   title: 'Namma Kadai',
@@ -33,12 +34,14 @@ export default function RootLayout({
       </head>
       <body className={cn('font-body antialiased min-h-screen flex flex-col')}>
         <FirebaseClientProvider>
-          <CartProvider>
-            <Header />
-            <main className="flex-grow">{children}</main>
-            <Footer />
-            <Toaster />
-          </CartProvider>
+          <AnonymousAuthProvider>
+            <CartProvider>
+              <Header />
+              <main className="flex-grow">{children}</main>
+              <Footer />
+              <Toaster />
+            </CartProvider>
+          </AnonymousAuthProvider>
         </FirebaseClientProvider>
       </body>
     </html>
