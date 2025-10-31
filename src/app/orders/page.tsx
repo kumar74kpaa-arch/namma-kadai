@@ -1,17 +1,98 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
-import type { Order } from '@/lib/types';
+import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
+import type { Order, Location } from '@/lib/types';
 import { formatPrice, cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ServerCrash, PackageSearch } from 'lucide-react';
+import { ServerCrash, PackageSearch, MapPin, PersonStanding } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+
+
+const statusConfig = {
+    pending: { label: 'Pending', color: 'bg-yellow-500 hover:bg-yellow-600', variant: 'secondary' as const },
+    approved: { label: 'Approved', color: 'bg-green-600 hover:bg-green-700 text-white', variant: 'default' as const },
+    rejected: { label: 'Rejected', color: '', variant: 'destructive' as const },
+    out_for_delivery: { label: 'Out for Delivery', color: 'bg-blue-600 hover:bg-blue-700 text-white', variant: 'default' as const },
+    delivered: { label: 'Delivered', color: 'bg-gray-600 hover:bg-gray-700 text-white', variant: 'default' as const },
+}
+
+function LiveMapView({ order }: { order: Order }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const firestore = useFirestore();
+  const [deliveryLocation, setDeliveryLocation] = useState<Location | null>(null);
+
+  useEffect(() => {
+    if (!firestore) return;
+
+    const deliveryRef = doc(firestore, `orders/${order.id}`);
+    const unsubscribe = onSnapshot(deliveryRef, (docSnap) => {
+      const data = docSnap.data();
+      if (data && data.deliveryLocation) {
+        setDeliveryLocation(data.deliveryLocation);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [firestore, order.id]);
+
+  useEffect(() => {
+    if (!mapRef.current || !window.google || !order.location) return;
+
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: order.location,
+      zoom: 14,
+      disableDefaultUI: true,
+    });
+
+    const customerMarker = new window.google.maps.Marker({
+      position: order.location,
+      map: map,
+      title: "Your Location",
+    });
+
+    let deliveryMarker: google.maps.Marker | null = null;
+    if (deliveryLocation) {
+        deliveryMarker = new window.google.maps.Marker({
+            position: deliveryLocation,
+            map: map,
+            title: "Delivery Person",
+            icon: {
+                path: window.google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: "#4285F4",
+                fillOpacity: 1,
+                strokeColor: "white",
+                strokeWeight: 2,
+            }
+        });
+    }
+
+    if (deliveryLocation && order.location) {
+        const bounds = new window.google.maps.LatLngBounds();
+        bounds.extend(order.location);
+        bounds.extend(deliveryLocation);
+        map.fitBounds(bounds);
+    } else {
+        map.setCenter(order.location);
+    }
+  
+  }, [order.location, deliveryLocation]);
+
+
+  return (
+    <div className="mt-4">
+      <h4 className="font-semibold mb-2">Live Tracking</h4>
+      <div ref={mapRef} className="h-64 w-full rounded-md bg-muted" />
+    </div>
+  );
+}
+
 
 function OrdersSkeleton() {
     return (
@@ -94,16 +175,8 @@ export default function MyOrdersPage() {
                                 Placed on {new Date(order.orderDate).toLocaleDateString()}
                             </p>
                         </div>
-                        <Badge variant={
-                            order.status === 'approved' ? 'default' :
-                            order.status === 'rejected' ? 'destructive' :
-                            'secondary'
-                        } className={cn(
-                            "capitalize text-sm py-1 px-3",
-                            order.status === 'approved' && 'bg-green-600 hover:bg-green-700 text-white',
-                            order.status === 'pending' && 'bg-yellow-500 hover:bg-yellow-600'
-                        )}>
-                            {order.status}
+                        <Badge variant={statusConfig[order.status].variant} className={cn("capitalize text-sm py-1 px-3", statusConfig[order.status].color)}>
+                            {statusConfig[order.status].label}
                         </Badge>
                     </CardHeader>
                     <CardContent className="p-4 md:p-6 grid gap-4">
@@ -122,6 +195,7 @@ export default function MyOrdersPage() {
                             <h4 className="font-semibold mb-1">Delivery Address</h4>
                             <p className="text-sm text-muted-foreground">{order.customerAddress}</p>
                         </div>
+                        {order.status === 'out_for_delivery' && order.location && <LiveMapView order={order} />}
                     </CardContent>
                     <CardFooter className="bg-muted/50 p-4 md:p-6 flex justify-end">
                         <div className="text-right">

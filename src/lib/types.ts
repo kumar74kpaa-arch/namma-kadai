@@ -33,5 +33,5 @@ export type Order = {
   orderDate: string; // ISO 8601 format
   totalPrice: number;
   orderItems: OrderItem[];
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'out_for_delivery' | 'delivered';
 };

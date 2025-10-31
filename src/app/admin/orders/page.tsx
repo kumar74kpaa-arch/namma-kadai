@@ -17,9 +17,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ServerCrash, CheckCircle, XCircle } from 'lucide-react';
+import { ServerCrash, CheckCircle, XCircle, Truck, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 function OrdersSkeleton() {
     return (
@@ -42,7 +43,7 @@ function OrdersSkeleton() {
                                 <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                                 <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                                 <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
-                                <TableCell className="flex gap-2"><Skeleton className="h-8 w-8" /><Skeleton className="h-8 w-8" /></TableCell>
+                                <TableCell className="flex gap-2"><Skeleton className="h-8 w-24" /><Skeleton className="h-8 w-24" /></TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -50,6 +51,14 @@ function OrdersSkeleton() {
             </CardContent>
         </Card>
     )
+}
+
+const statusConfig = {
+    pending: { label: 'Pending', color: 'bg-yellow-500 hover:bg-yellow-600', variant: 'secondary' as const },
+    approved: { label: 'Approved', color: 'bg-green-600 hover:bg-green-700 text-white', variant: 'default' as const },
+    rejected: { label: 'Rejected', color: '', variant: 'destructive' as const },
+    out_for_delivery: { label: 'Out for Delivery', color: 'bg-blue-600 hover:bg-blue-700 text-white', variant: 'default' as const },
+    delivered: { label: 'Delivered', color: 'bg-gray-600 hover:bg-gray-700 text-white', variant: 'default' as const },
 }
 
 export default function AdminOrdersPage() {
@@ -65,17 +74,16 @@ export default function AdminOrdersPage() {
 
   const sortedOrders = useMemo(() => {
     if (!orders) return [];
-    // sort by date desc
     return [...orders].sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   }, [orders]);
 
-  const handleUpdateStatus = (orderId: string, status: 'approved' | 'rejected') => {
+  const handleUpdateStatus = (orderId: string, status: Order['status']) => {
     if (!firestore) return;
     const orderRef = doc(firestore, 'orders', orderId);
     updateDocumentNonBlocking(orderRef, { status });
     toast({
-        title: `Order ${status}`,
-        description: `The order has been successfully ${status}.`,
+        title: `Order ${status.replace('_', ' ')}`,
+        description: `The order has been successfully updated.`,
     })
   }
 
@@ -124,40 +132,31 @@ export default function AdminOrdersPage() {
                                     {new Date(order.orderDate).toLocaleDateString()}
                                 </TableCell>
                                 <TableCell>
-                                    <Badge variant={
-                                        order.status === 'approved' ? 'default' :
-                                        order.status === 'rejected' ? 'destructive' :
-                                        'secondary'
-                                    } className={cn(
-                                        "capitalize",
-                                        order.status === 'approved' && 'bg-green-600 hover:bg-green-700 text-white',
-                                        order.status === 'pending' && 'bg-yellow-500 hover:bg-yellow-600'
-                                    )}>
-                                        {order.status}
+                                    <Badge variant={statusConfig[order.status].variant} className={cn("capitalize", statusConfig[order.status].color)}>
+                                        {statusConfig[order.status].label}
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-right">{formatPrice(order.totalPrice)}</TableCell>
                                 <TableCell className="text-center">{order.orderItems.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                                 <TableCell>{order.customerAddress}</TableCell>
-                                <TableCell className="flex gap-2">
-                                    <Button 
-                                        variant="outline" 
-                                        size="icon" 
-                                        className="text-green-600 hover:bg-green-100 hover:text-green-700 border-green-600"
-                                        onClick={() => handleUpdateStatus(order.id, 'approved')}
-                                        disabled={order.status === 'approved'}
-                                    >
-                                        <CheckCircle className="h-4 w-4" />
-                                    </Button>
-                                    <Button 
-                                        variant="outline" 
-                                        size="icon" 
-                                        className="text-red-600 hover:bg-red-100 hover:text-red-700 border-red-600"
-                                        onClick={() => handleUpdateStatus(order.id, 'rejected')}
-                                        disabled={order.status === 'rejected'}
-                                    >
-                                        <XCircle className="h-4 w-4" />
-                                    </Button>
+                                <TableCell className="flex flex-col gap-2 items-start">
+                                    {order.status === 'pending' && (
+                                        <>
+                                            <Button variant="outline" size="sm" className="w-full justify-start border-green-500 text-green-600 hover:bg-green-100 hover:text-green-700" onClick={() => handleUpdateStatus(order.id, 'approved')}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
+                                            <Button variant="outline" size="sm" className="w-full justify-start border-red-500 text-red-600 hover:bg-red-100 hover:text-red-700" onClick={() => handleUpdateStatus(order.id, 'rejected')}><XCircle className="mr-2 h-4 w-4" />Reject</Button>
+                                        </>
+                                    )}
+                                    {order.status === 'approved' && (
+                                        <Button variant="outline" size="sm" className="w-full justify-start border-blue-500 text-blue-600 hover:bg-blue-100 hover:text-blue-700" onClick={() => handleUpdateStatus(order.id, 'out_for_delivery')}><Truck className="mr-2 h-4 w-4" />Out for Delivery</Button>
+                                    )}
+                                    {order.status === 'out_for_delivery' && (
+                                        <Button variant="outline" size="sm" className="w-full justify-start border-gray-500 text-gray-600 hover:bg-gray-100 hover:text-gray-700" onClick={() => handleUpdateStatus(order.id, 'delivered')}><PackageCheck className="mr-2 h-4 w-4" />Mark Delivered</Button>
+                                    )}
+                                     {order.status === 'out_for_delivery' && (
+                                        <Button variant="link" size="sm" asChild className="p-0 h-auto">
+                                            <Link href={`/delivery/${order.id}`} target="_blank">View Delivery</Link>
+                                        </Button>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}
