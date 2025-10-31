@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCart } from "@/context/cart-provider";
@@ -7,15 +8,78 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice } from "@/lib/utils";
-import { Minus, Plus, Trash2, ShoppingCart, Upload, CheckCircle } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Upload, CheckCircle, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useFirestore, addDocumentNonBlocking, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import type { Order } from "@/lib/types";
+import type { Order, Location } from "@/lib/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+
+function LocationPicker({ onLocationSelect }: { onLocationSelect: (location: Location) => void }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerInstanceRef = useRef<google.maps.Marker | null>(null);
+
+  useEffect(() => {
+    if (isDialogOpen && mapRef.current && !mapInstanceRef.current && typeof window.google !== 'undefined') {
+      const defaultLocation = { lat: 13.0827, lng: 80.2707 }; // Default to Chennai
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: defaultLocation,
+        zoom: 12,
+        disableDefaultUI: true,
+      });
+      mapInstanceRef.current = map;
+
+      map.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (e.latLng) {
+          const newLocation = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+          setSelectedLocation(newLocation);
+          if (!markerInstanceRef.current) {
+            markerInstanceRef.current = new window.google.maps.Marker({
+              position: newLocation,
+              map: map,
+            });
+          } else {
+            markerInstanceRef.current.setPosition(newLocation);
+          }
+        }
+      });
+    }
+  }, [isDialogOpen]);
+
+  const handleConfirm = () => {
+    if (selectedLocation) {
+      onLocationSelect(selectedLocation);
+      setIsDialogOpen(false);
+    }
+  };
+  
+  return (
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <MapPin className="mr-2 h-4 w-4" />
+          {selectedLocation ? 'Location Selected' : 'Select Delivery Location'}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Select Your Delivery Location</DialogTitle>
+        </DialogHeader>
+        <div ref={mapRef} className="h-96 w-full rounded-md bg-muted" />
+        <DialogFooter>
+          <Button onClick={handleConfirm} disabled={!selectedLocation}>Confirm Location</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default function CartPage() {
   const { cartItems, updateQuantity, removeFromCart, totalPrice, totalItems, clearCart } = useCart();
@@ -27,6 +91,7 @@ export default function CartPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [location, setLocation] = useState<Location | null>(null);
   
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -54,6 +119,14 @@ export default function CartPage() {
         variant: "destructive",
         title: "Missing Information",
         description: "Please fill out all customer details.",
+      });
+      return;
+    }
+     if (!location) {
+      toast({
+        variant: "destructive",
+        title: "Missing Location",
+        description: "Please select a delivery location on the map.",
       });
       return;
     }
@@ -88,6 +161,7 @@ export default function CartPage() {
         customerName,
         customerPhone,
         customerAddress,
+        location,
         orderDate: new Date().toISOString(),
         totalPrice,
         orderItems: cartItems.map(item => ({
@@ -217,6 +291,10 @@ export default function CartPage() {
                   <div className="space-y-2">
                     <Label htmlFor="address">Shipping Address</Label>
                     <Input id="address" placeholder="Enter your address" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                      <Label>Delivery Location</Label>
+                      <LocationPicker onLocationSelect={setLocation} />
                   </div>
               </div>
               

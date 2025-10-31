@@ -1,3 +1,4 @@
+
 export type Product = {
   id: string;
   name: string;
@@ -29,7 +30,7 @@ export type Order = {
   customerName: string;
   customerPhone: string;
   customerAddress: string;
-  location?: Location;
+  location: Location;
   deliveryLocation?: Location;
   orderDate: string; // ISO 8601 format
   totalPrice: number;
