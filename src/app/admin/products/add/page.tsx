@@ -43,7 +43,7 @@ export default function AddProductPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<ProductFormValues>({
+  const { register, handleSubmit, formState: { errors }, watch, reset } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
   });
 
@@ -116,6 +116,7 @@ export default function AddProductPage() {
           });
 
           router.push('/admin/products');
+          // No need to set isLoading to false here because we are navigating away
 
         } catch (error) {
           console.error("Error adding product to Firestore:", error);
@@ -124,9 +125,9 @@ export default function AddProductPage() {
               title: 'Uh oh! Something went wrong.',
               description: 'Could not save the product details. Please try again.',
           });
-        } finally {
-            setIsLoading(false);
-            setUploadProgress(0);
+          // On submission error, stop loading so the user can try again
+          setIsLoading(false);
+          setUploadProgress(0);
         }
       }
     );
