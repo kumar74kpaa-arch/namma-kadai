@@ -91,11 +91,13 @@ export default function AddProductPage() {
         body: formData,
       });
 
-      if (!uploadResponse.ok) {
-        throw new Error('Image upload failed.');
-      }
-
       const cloudinaryData = await uploadResponse.json();
+
+      if (!uploadResponse.ok) {
+        // Throw an error with the message from Cloudinary
+        throw new Error(cloudinaryData.error?.message || 'Image upload failed.');
+      }
+      
       const imageUrl = cloudinaryData.secure_url;
       
       // 2. Add product to Firestore
@@ -114,12 +116,12 @@ export default function AddProductPage() {
 
       router.push('/admin/products');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding product:", error);
       toast({
           variant: 'destructive',
           title: 'Uh oh! Something went wrong.',
-          description: 'Could not save the product. Please try again.',
+          description: error.message || 'Could not save the product. Please try again.',
       });
     } finally {
       setIsLoading(false);

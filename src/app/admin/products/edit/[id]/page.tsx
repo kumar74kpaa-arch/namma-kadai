@@ -121,11 +121,12 @@ export default function EditProductPage({ params }: EditProductPageProps) {
               body: formData,
             });
 
-            if (!uploadResponse.ok) {
-              throw new Error('Image upload failed.');
-            }
-
             const cloudinaryData = await uploadResponse.json();
+
+            if (!uploadResponse.ok) {
+              throw new Error(cloudinaryData.error?.message || 'Image upload failed.');
+            }
+            
             imageUrl = cloudinaryData.secure_url;
         }
 
@@ -140,12 +141,12 @@ export default function EditProductPage({ params }: EditProductPageProps) {
 
         router.push('/admin/products');
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating product:", error);
         toast({
             variant: 'destructive',
             title: 'Uh oh! Something went wrong.',
-            description: 'Could not update the product. Please try again.',
+            description: error.message || 'Could not update the product. Please try again.',
         });
     } finally {
       setIsSubmitting(false);
