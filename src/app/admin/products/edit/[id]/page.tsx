@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useDoc, useFirestore, updateDocumentNonBlocking } from '@/firebase';
+import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
@@ -72,7 +72,10 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   const storage = getStorage();
   const { toast } = useToast();
   
-  const productRef = firestore ? doc(firestore, 'products', productId) : null;
+  const productRef = useMemoFirebase(
+    () => (firestore ? doc(firestore, 'products', productId) : null),
+    [firestore, productId]
+  );
   const { data: product, isLoading: isProductLoading, error: productError } = useDoc<Product>(productRef);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,7 +102,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   };
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
-    if (!firestore || !product) return;
+    if (!firestore || !product || !productRef) return;
 
     setIsSubmitting(true);
     let imageUrl = product.imageUrl;
@@ -115,7 +118,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
 
         // Update product in Firestore
         const productToUpdate = { ...data, imageUrl };
-        updateDocumentNonBlocking(doc(firestore, 'products', productId), productToUpdate);
+        updateDocumentNonBlocking(productRef, productToUpdate);
 
         toast({
             title: 'Product Updated!',
